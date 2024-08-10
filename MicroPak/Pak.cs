@@ -58,7 +58,7 @@ public class Index(string mountPoint)
     }
 }
 
-public static class MicroPak
+public static class Pak
 {
     private const uint Magic = 0x5A6F12E1;
     private const string MountPoint = "../../../";
@@ -66,7 +66,7 @@ public static class MicroPak
     private const uint VersionMajor = 8;
     private const int AlgoSize = 5;
 
-    public static byte[] PackFiles(IEnumerable<InputFile> files)
+    public static byte[] Create(IEnumerable<InputFile> files)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);

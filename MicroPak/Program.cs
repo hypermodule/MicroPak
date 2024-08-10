@@ -26,7 +26,7 @@ var files = Directory.EnumerateFiles(rootPath, "*.*", SearchOption.AllDirectorie
     return new InputFile(relPath, content);
 }).ToList();
 
-var pak = MicroPak.MicroPak.PackFiles(files);
+var pak = Pak.Create(files);
 
 var pakName = dirName + ".pak";
 

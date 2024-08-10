@@ -11,7 +11,7 @@ public class PackTests
     public void TestEmpty()
     {
         // Act
-        var actual = MicroPak.PackFiles([]);
+        var actual = Pak.Create([]);
 
         // Assert
         byte[] expected =
@@ -43,7 +43,7 @@ public class PackTests
         var file2 = CreateAsciiTxtFile("CoolGame/Content/Dir1/Dir2/FileB.txt", "Goodbye, world!\r\n");
 
         // Act
-        var actual = MicroPak.PackFiles([file1, file2]);
+        var actual = Pak.Create([file1, file2]);
 
         // Assert
         byte[] expected = // Reference output produced with `repak pack` (using default options)
@@ -184,7 +184,7 @@ public class PackTests
         ];
 
         // Act
-        var actual = MicroPak.PackFiles(files);
+        var actual = Pak.Create(files);
 
         // Assert
         byte[] expected = // Reference output produced with `repak pack` (using default options)
