@@ -3,104 +3,80 @@ using System.Text;
 
 namespace MicroPak;
 
-public record InputFile(string Path, byte[] Data);
-
-public enum EntryLocation
-{
-    Data,
-    Index
-}
-
-public record Entry(ulong Offset, byte[] Data, byte[] Hash)
-{
-    private const uint Compression = 0;
-    private const byte Flags = 0;
-    private const uint CompressionBlockSize = 0;
-    
-    public Entry(InputFile file, long Offset) : this((ulong)Offset, file.Data, SHA1.HashData(file.Data))
-    {
-    }
-
-    public void WriteTo(BinaryWriter writer, EntryLocation location)
-    {
-        writer.Write(location == EntryLocation.Data ? 0UL : Offset); // Offset
-        writer.Write((ulong)Data.Length); // Compressed size
-        writer.Write((ulong)Data.Length); // Uncompressed size
-        writer.Write(Compression);
-        writer.Write(Hash);
-        writer.Write(Flags);
-        writer.Write(CompressionBlockSize);
-    }
-}
-
-public class Index(string mountPoint)
-{
-    private readonly SortedDictionary<string, Entry> _entries = new();
-
-    public void AddEntry(string path, Entry entry) => _entries.Add(path, entry);
-
-    public byte[] Serialize()
-    {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream);
-
-        writer.WriteString(mountPoint);
-
-        writer.Write((uint)_entries.Count);
-
-        foreach (var (path, entry) in _entries)
-        {
-            writer.WriteString(path);
-            entry.WriteTo(writer, EntryLocation.Index);
-        }
-
-        return stream.ToArray();
-    }
-}
-
 public static class Pak
 {
-    private const uint Magic = 0x5A6F12E1;
-    private const string MountPoint = "../../../";
-    private const byte Encrypted = 0;
-    private const uint VersionMajor = 8;
-    private const int AlgoSize = 5;
-
-    public static byte[] Create(IEnumerable<InputFile> files)
+    private static void WriteEntry(BinaryWriter writer, ulong offset, ulong size, byte[] hash)
     {
+        const uint compression = 0;
+        const byte flags = 0;
+        const uint compressionBlockSize = 0;
+
+        writer.Write(offset);
+        writer.Write(size); // Compressed size
+        writer.Write(size); // Uncompressed size
+        writer.Write(compression);
+        writer.Write(hash);
+        writer.Write(flags);
+        writer.Write(compressionBlockSize);
+    }
+
+    public static byte[] Create(IDictionary<string, byte[]> files)
+    {
+        const uint magic = 0x5A6F12E1;
+        const string mountPoint = "../../../";
+        const byte encrypted = 0;
+        const uint versionMajor = 8;
+        const int algoSize = 5;
+
+        // Prepare files
+        var sortedFiles = files.Select(file => new
+            {
+                Path = file.Key,
+                Data = file.Value,
+                Hash = SHA1.HashData(file.Value)
+            })
+            .OrderBy(x => x.Path)
+            .ToList();
+        
+        // Prepare for writing
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
+        var offsets = new List<ulong>();
 
-        var index = new Index(MountPoint);
-
-        // Write entries and populate index
-        foreach (var file in files.OrderBy(file => file.Path))
+        // Write entries
+        foreach (var file in sortedFiles)
         {
-            var entry = new Entry(file, writer.BaseStream.Position);
-            entry.WriteTo(writer, EntryLocation.Data);
+            offsets.Add((ulong)writer.BaseStream.Position);
+            WriteEntry(writer, 0UL, (ulong)file.Data.Length, file.Hash);
             writer.Write(file.Data);
-            index.AddEntry(file.Path, entry);
         }
 
         // Write index
-        var indexBytes = index.Serialize();
-        var indexHash = SHA1.HashData(indexBytes);
         var indexOffset = writer.BaseStream.Position;
-        writer.Write(indexBytes);
-
+        writer.WriteFString(mountPoint);
+        writer.Write((uint)files.Count);
+        foreach (var (file, offset) in sortedFiles.Zip(offsets))
+        {
+            writer.WriteFString(file.Path);
+            WriteEntry(writer, offset, (ulong)file.Data.Length, file.Hash);
+        }
+        
+        // Record data about index
+        var indexSize = writer.BaseStream.Position - indexOffset;
+        var indexHash = SHA1.HashData(new ReadOnlySpan<byte>(stream.GetBuffer(), (int)indexOffset, (int)indexSize));
+        
         // Write footer
         for (var i = 0; i < 16; i++) // Encryption guid
         {
             writer.Write((byte)0);
         }
-
-        writer.Write(Encrypted);
-        writer.Write(Magic);
-        writer.Write(VersionMajor);
+        writer.Write(encrypted);
+        writer.Write(magic);
+        writer.Write(versionMajor);
         writer.Write((ulong)indexOffset);
-        writer.Write((ulong)indexBytes.Length);
+        writer.Write((ulong)indexSize);
         writer.Write(indexHash);
-        for (var i = 0; i < AlgoSize; i++)
+        for (var i = 0; i < algoSize; i++)
         {
             writer.Write(new byte[32]);
         }
@@ -109,11 +85,11 @@ public static class Pak
     }
 }
 
-public static class BinaryWriterExt
+internal static class BinaryWriterExt
 {
     private static bool IsAscii(string str) => str.All(c => c <= 127);
 
-    public static void WriteString(this BinaryWriter writer, string str)
+    public static void WriteFString(this BinaryWriter writer, string str)
     {
         if (IsAscii(str))
         {

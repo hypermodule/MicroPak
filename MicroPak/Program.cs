@@ -23,8 +23,8 @@ var files = Directory.EnumerateFiles(rootPath, "*.*", SearchOption.AllDirectorie
     var relPath = Path.GetRelativePath(rootPath, path).Replace('\\', '/');
     var content = File.ReadAllBytes(path);
 
-    return new InputFile(relPath, content);
-}).ToList();
+    return new KeyValuePair<string, byte[]>(relPath, content);
+}).ToDictionary();
 
 var pak = Pak.Create(files);
 
