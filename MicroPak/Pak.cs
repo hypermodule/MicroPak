@@ -20,6 +20,20 @@ public static class Pak
         writer.Write(compressionBlockSize);
     }
 
+    /// <summary>
+    /// Makes a .pak file out of the specified files.
+    /// </summary>
+    /// <param name="files">A dictionary of (path, bytes) entries.</param>
+    /// <example>
+    /// <code>
+    /// Pak.Create(new Dictionary&lt;string, byte[]&gt;
+    /// {
+    ///     ["CoolGame/Content/Dir1/Dir2/FileA.txt"] = "Hello, world!"u8.ToArray(),
+    ///     ["CoolGame/Content/Dir1/Dir2/FileB.txt"] = "Goodbye, world!"u8.ToArray()
+    /// });
+    /// </code>
+    /// </example>
+    /// <returns>The .pak file represented as a byte array.</returns>
     public static byte[] Create(IDictionary<string, byte[]> files)
     {
         const uint magic = 0x5A6F12E1;
@@ -31,7 +45,7 @@ public static class Pak
         // Prepare files
         var sortedFiles = files.Select(file => new
             {
-                Path = file.Key,
+                Path = file.Key.Replace('\\', '/'),
                 Data = file.Value,
                 Hash = SHA1.HashData(file.Value)
             })
